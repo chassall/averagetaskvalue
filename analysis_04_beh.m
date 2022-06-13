@@ -1,6 +1,10 @@
-% Do time-frequency analysis for the Average Task Value study
+% Do the behavioural analysis for the Average Task Value study
 %
-% Other m-files required: EEGLAB with iclabel extension
+% Other m-files required: 
+% EEGLAB with iclabel extension
+% cbrewer.m
+% notBoxPlot.m
+% boundedline.m (https://github.com/kakearney/boundedline-pkg)
 
 % Author: Cameron Hassall, Department of Psychiatry, University of Oxford
 % email address: cameron.hassall@psych.ox.ac.uk
@@ -9,22 +13,23 @@
 % Note that P1, P2 were pilot subjects and will not be included in any
 % averages
 
-% Poor performance (<60% in the learnable blocks): 3 5 9 12 20 24 25
+close all; clear all;
 
-scrsz = get(groot,'ScreenSize');
-figure_loc = [1 scrsz(4)/2 scrsz(3)/1.5 scrsz(4)/2]; % This is where figures will be drawn
+% Set output folder
+outputFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\analysis\output';
+if ~exist(outputFolder,'dir')
+    mkdir(outputFolder);
+end
 
-% From the experiment script
-% this_data_line = [b t this_block_type thi s_trial_stimulus this_trial_p this_trial_colour this_trial_shape chosen_side responded_early invalid_response response_time*1000 this_trial_a_winner this_trial_optimal];
+% Participants
+allPs = 1:38; % 1-2: pilot, 18: noisy
+learners = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26,27,28,31,34,35,36,37,38];
+nonLearners = [3 5 9 12 20 24 25 29 30 32 33]; % <60% in mid or high task
 
-% Included participants
-% pIncluded = [3:17 19:26]; % All participants
-pIncluded = [4 6 7 8 10 11 13 14 15 16 17 19 21 22 23 26]; % Learners only
-
-num_participants = length(pIncluded);
-all_participant_acc = nan(num_participants,4,200); % pIncluded X conditions X trials
+num_participants = length(allPs);
+all_participant_acc = nan(num_participants,4,200); % allPs X conditions X trials
 numTrialsMM = 200;
-all_participant_acc_mm = nan(num_participants,2,numTrialsMM); % pIncluded X conditions X trials
+all_participant_acc_mm = nan(num_participants,2,numTrialsMM); % allPs X conditions X trials
 all_participant_rsp = nan(num_participants,4,200);
 acc = nan(num_participants,3,200);
 win_size = 15;
@@ -33,11 +38,14 @@ aveRewards = [];
 avePerformance = [];
 aveChoice = [];
 
-newNewAcc = nan(length(pIncluded),144,2);
+newNewAcc = nan(length(allPs),144,2);
+
+numReward = [];
 
 for p = 1:num_participants
     
-    if pIncluded(p) == 1 || pIncluded(p) == 2
+    % Columns differed slightly between p1-2 (pilot) and p3-38
+    if allPs(p) == 1 || allPs(p) == 2
         r_index = 9;
         e_index = 10;
         i_index = 11;
@@ -50,10 +58,23 @@ for p = 1:num_participants
         o_index = 14;
         p_index = 15;
     end
-    
-    this_dir = dir(['../Behavioural/casinos_*_' num2str(pIncluded(p),'%02i')  '.txt']);
-    this_data = load([this_dir.folder '/' this_dir.name]);
-    
+
+    % Set data folder and load beh data
+    % Colums: [b t this_block_type thi s_trial_stimulus this_trial_p this_trial_colour this_trial_shape chosen_side responded_early invalid_response response_time*1000 this_trial_a_winner this_trial_optimal];
+    pString = ['sub-' num2str( allPs(p),'%0.02i')];
+    if p <= 26
+        dataFolder = '/Users/chassall/OneDrive - Nexus365/Projects/2016_EEG_Casinos_Hassall/data_site-1';
+        dString = [pString '_task-casinos_beh.txt'];
+        this_data = load(fullfile(dataFolder,pString,'beh',dString));
+    else
+        dataFolder = '/Users/chassall/OneDrive - Nexus365/Projects/2016_EEG_Casinos_Hassall/data_site-2';
+        dString = [pString '_task-casinos_beh.tsv'];
+        temp_data = tdfread(fullfile(dataFolder,pString,'beh',dString));
+        this_data = [temp_data.block temp_data.trial temp_data.task temp_data.cue temp_data.prob temp_data.red temp_data.green temp_data.blue temp_data.shape temp_data.response temp_data.early temp_data.invalid temp_data.rt temp_data.outcome temp_data.optimal];
+    end
+
+    numReward(p) = sum(this_data(:,14));
+
     block_50_i = (this_data(:,3) == 1);
     block_50M_i = (this_data(:,3) == 2) & (this_data(:,4) <= 3 );
     block_80M_i = (this_data(:,3) == 2) & (this_data(:,4) >= 4);
@@ -156,7 +177,7 @@ gave_acc = nanmean(ave_acc,1);
 gave_sem = std(ave_acc,1)./sqrt(num_participants);
 t_value = tinv(0.975,num_participants-1);
 gave_ci = gave_sem .* t_value;
-  
+payments = 0.018 * numReward';
 
 %% Mean Performance plot
 
@@ -166,11 +187,14 @@ hline = refline(0,0.5);
 hline.LineStyle = '--';
 hline2 = refline(0,0.6);
 hline2.LineStyle = '--';
-hline2.Color = 'r';
+hline2.Color = 'g';
+hline3 = refline(0,0.80);
+hline3.LineStyle = '--';
+hline3.Color = 'b';
 ax = gca;
-ax.XTick = 1:length(pIncluded);
-ax.XTickLabel = pIncluded;
-save('avePerformance.mat','avePerformance');
+ax.XTick = 1:length(allPs);
+ax.XTickLabel = allPs;
+save(fullfile(outputFolder,'avePerformance.mat'),'avePerformance');
 
 %% Mean Rewards plot
 
@@ -182,8 +206,8 @@ hline2 = refline(0,0.6);
 hline2.LineStyle = '--';
 hline2.Color = 'r';
 ax = gca;
-ax.XTick = 1:length(pIncluded);
-ax.XTickLabel = pIncluded;
+ax.XTick = 1:length(allPs);
+ax.XTickLabel = allPs;
 
 %% Manuscript Figure 02: Behavioral data
 
@@ -192,7 +216,6 @@ labels = {};
 
 fontSize = 8;
 lineWidth = 1.25;
-learners = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26];
 
 % Subplot settings
 gap = [0.10,0.12];
@@ -203,7 +226,7 @@ marg_w = [0.1,0.04];
 makefigure(19,7);
 
 axs{1} = subtightplot(1,3,1,gap,marg_h,marg_w);
-[h2,stats2] = notBoxPlot(aveRewards(learners,:).*100);
+[h2,stats2] = notBoxPlot(aveRewards(learners,:).*100,'interval','tInterval');
 plotColours = cbrewer('qual','Dark2',3);
 formatNBP(h2);
 titles{1} = title('(a)');
@@ -237,7 +260,7 @@ titles{2}.Units = 'normalized';
 titles{2}.Position = [-0.3,1.1,0];
 
 axs{3} = subtightplot(1,3,3,gap,marg_h,marg_w);
-[h1,stats1] = notBoxPlot(avePerformance(learners,:).*100);
+[h1,stats1] = notBoxPlot(avePerformance(learners,:).*100,'interval','tInterval');
 formatNBP(h1);
 titles{3} = title('(c)');
 titles{3}.Units = 'normalized';
@@ -280,4 +303,4 @@ for l = 1:length(titles)
    titles{l}.FontWeight = 'Normal';
 end
 
-print('behavioural','-dtiff','-r600');
+print(fullfile(outputFolder,'behavioural'),'-dtiff','-r600');

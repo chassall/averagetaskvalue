@@ -1,6 +1,15 @@
-% Do time-frequency analysis for the Average Task Value study
+% Do time-frequency analysis for the Average Task Value study (Supplement)
 %
-% Other m-files required: EEGLAB with iclabel extension
+% Other m-files required: 
+% EEGLAB with iclabel extension
+% doWAV.m
+% doWavelet.m
+% find_artifacts.m
+% formatNBP.m
+% notboxplot.m
+% makefigure.m
+% makeMeans.m
+% rmTTest.m
 
 % Author: Cameron Hassall, Department of Psychiatry, University of Oxford
 % email address: cameron.hassall@psych.ox.ac.uk
@@ -9,20 +18,38 @@
 % Note that P1, P2 were pilot subjects and will not be included in any
 % averages
 
-ps = 1:26;
+eeglab(); clear all;
+
+% Set output folder
+outputFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\analysis\output';
+if ~exist(outputFolder,'dir')
+    mkdir(outputFolder);
+end
+
+% Requires: Image Processing toolbox (bwboundaries function)
+allPs = 1:38;
+allIncludedPs = [3:17 19:38]; % 1-2: pilot, 18: noisy
+learners = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26,27,28,31,34,35,36,37,38];
+nonLearners = [3 5 9 12 20 24 25 29 30 32 33];
 markers = {{'S  2'},{'S 12'},{'S 22'},{'S 32'}};
 numConditions = length(markers);
-eegInt = [-0.6 1.2];
+eegInt = [-0.5 1.3];
 eegBl = [-200 0];
-rawFolder = 'E:\OneDrive - Nexus365\Projects\RPS\data';
-prepFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_PSYC574A\Analysis (New New)\preprocessed';
-removedTrialCount = [];
-for pi = 1:length(ps)
-    whichP = ps(pi);
-    prepFile = ['./preprocessed/erpclass2016_' num2str(whichP,'%0.04i') '_eye2.mat'];
-    tfFile = ['./preprocessed/erpclass2016_' num2str(whichP,'%0.04i') '_tf_long.mat'];
-    disp(prepFile);
-    load(prepFile);
+
+%%
+for pi = 1:length(allPs)
+
+    % Set data folder and load preprocessed, ocular-corrected data
+    if allPs(pi) <= 27
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-1';
+    else
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-2';
+    end
+    pString = ['sub-' num2str( allPs(pi),'%0.02i')];
+    preprocessedFolder = [dataFolder '/derivatives/' pString];
+    eyeCorrFile = [pString '_task-casinos_prepoc.mat'];
+    tfFile = [pString '_task-casinos_tf.mat']; % Output file
+    load(fullfile(preprocessedFolder, eyeCorrFile));
     
     % Epoching
     theseEEG = {};
@@ -35,15 +62,12 @@ for pi = 1:length(ps)
     theseAr = {};
     for ci = 1:numConditions
         [theseAr{ci},theseArCT{ci}] = find_artifacts(theseEEG{ci}, 150, 150, 40, 0.1);
-        removedTrialCount(pi,ci) = mean(theseAr{ci});
     end
     
     % Remove bad trials
     for ci = 1:numConditions
         if ~all(theseAr{ci})
             theseEEG{ci} = pop_select(theseEEG{ci},'notrial',find(theseAr{ci}));
-        %else
-        %    theseEEG{ci} = [];
         end
     end
     
@@ -54,30 +78,58 @@ for pi = 1:length(ps)
     end
     
     % Save
-    save(tfFile,'theseWAV');
+    save(fullfile(preprocessedFolder,tfFile),'theseWAV','theseAr');
 end
-save('removedTrialCountTFLong.mat','removedTrialCount');
-return;
 
 %% Artifact counts
-load('removedTrialCountTFLong.mat');
-whichPs = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26]; % Learners only
-whichArtifacts = mean(removedTrialCount(whichPs,:),2);
+allPs = 1:38;
+allIncludedPs = [3:17 19:38]; % 1-2: pilot, 18: noisy
+learners = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26,27,28,31,34,35,36,37,38];
+nonLearners = [3 5 9 12 20 24 25 29 30 32 33];
+
+numConditions = 4;
+removedTrialCount = [];
+for pi = 1:length(allPs)
+    % Set data folder and load time-frequency data
+    if allPs(pi) < 27
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-1';
+    else
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-2';
+    end
+    pString = ['sub-' num2str( allPs(pi),'%0.02i')];
+    preprocessedFolder = [dataFolder '/derivatives/' pString];
+    tfFile = [pString '_task-casinos_tf.mat']; % Output file
+    load(fullfile(preprocessedFolder, tfFile),'theseAr');
+    for ci = 1:numConditions
+        removedTrialCount(pi,ci) = mean(theseAr{ci});
+    end
+end
+% Display stats for learners only
+whichArtifacts = mean(removedTrialCount(learners,:),2);
 makeMeans(whichArtifacts);
 
 %% Load preprocessed TF data
-ps = 1:26;
+
 markers = {{'S  2'},{'S 12'},{'S 22'},{'S 32'}};
 numConditions = length(markers);
 prepFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_PSYC574A\Analysis\preprocessed';
 removedTrialCount = [];
 allWav = [];
-for pi = 1:length(ps)
+for pi = 1:length(allPs)
     
-    whichP = ps(pi);
-    tfFile = ['./preprocessed/erpclass2016_' num2str(whichP,'%0.04i') '_logtf2.mat'];
-    load(tfFile);
+    % Set data folder and load time-frequency data
+    if allPs(pi) < 27
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-1';
+    else
+        dataFolder = 'E:\OneDrive - Nexus365\Projects\2016_EEG_Casinos_Hassall\data_site-2';
+    end
     
+    % Load preprocessed, time-frequency data
+    pString = ['sub-' num2str( allPs(pi),'%0.02i')];
+    preprocessedFolder = [dataFolder '/derivatives/' pString];
+    tfFile = [pString '_task-casinos_tf.mat']; % Output file
+    load(fullfile(preprocessedFolder, tfFile),'theseWAV');
+
     for ci = 1:4
         allWav(pi,ci,:,:,:) = theseWAV{ci}.data;
         times = theseWAV{ci}.times;
@@ -87,17 +139,17 @@ for pi = 1:length(ps)
     
 end
 
-save('tf.mat');
+save(fullfile(outputFolder,'tf.mat'));
 
 %% Collapsed TF analysis
+% Start here to skip wavelet generation above
+
+load(fullfile(outputFolder,'tf.mat'));
 
 fontSize = 8;
 lineWidth = 1.25;
 
-% whichPs = [3:12 14:17 19:26]; % All Participants
-% whichPs = [3 5 9 12 20 24 25]; % Non-learners
-whichPs = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26]; % Learners only
-
+whichPs = learners;
 tfBaselineS = [-400 -100];
 tfBaselineP = dsearchn(times',tfBaselineS');
 meanCue = squeeze(mean(allWav(:,:,:,:,:),2));
@@ -114,6 +166,7 @@ conditionMeansBaselined = cueMeansBasedlined;
 channelStr = 'FCz'; 
 channelI = find(strcmp({chanlocs.labels},channelStr));
 thisGreatGrandMean = squeeze(mean(whichAllMeans(whichPs,channelI,:,:),1));
+
 
 allowableFHz = [3 8];
 allowableTMs = [1 1000];
@@ -227,10 +280,11 @@ for i = 1:length(titles)
    titles{i}.FontSize = 10;
    titles{i}.FontWeight = 'Normal';
 end
-print('fmtcollapsed.tiff','-dtiff','-r300');
 
-%%
-%
+print(fullfile(outputFolder,'fmtcollapsed.tiff'),'-dtiff','-r300');
+
+%% Conditional FMT analysis
+
 [mapFreqsP,mapTimesP] = find(thresholdMap);
 mapFreqs = frequencies(mapFreqsP);
 mapTimes = times(mapTimesP);
@@ -299,7 +353,6 @@ within = table(pCond,'VariableNames',{'P'}); % Create a table reflecting the wit
 rm = fitrm(between,'V1-V4 ~ 1','WithinDesign',within); % Use ~1 since no between-subject variable
 [ranovatbl,A,C,D] = ranova(rm,'WithinModel','P');
 disp(ranovatbl);
-% etap = ranovatbl.SumSq(3)/(ranovatbl.SumSq(3) + ranovatbl.SumSq(4));
 
 % Means
 makeMeans(condScores);
@@ -310,10 +363,7 @@ rmTTest(condScores(:,2),condScores(:,3));
 % T-Tests: high versus low value
 rmTTest(condScores(:,1),condScores(:,4));
 
-% Non-learners
-allPs = [3:12 14:17 19:26];
-learners = [4,6,7,8,10,11,13,14,15,16,17,19,21,22,23,26]; % Learners
-nonLearners = [3 5 9 12 20 24 25]; % Non-learners 
+% Compute non-learner scores for the correlational analysis
 nlScores = [];
 for whichCond = 1:4
 
@@ -331,9 +381,9 @@ for whichCond = 1:4
     nlScores(:,whichCond) = allPClusters(channelI,:)';
 end
 
-% Correlations
+%% Correlations between FMT and performance
 disp('FMT-Performance Correlation');
-load('avePerformance.mat');
+load(fullfile(outputFolder,'avePerformance.mat'),'avePerformance');
 orderedPerformance = [avePerformance(nonLearners,:); avePerformance(learners,:)];
 orderedScores = [nlScores; condScores];
 labels = [ones(1,length(nonLearners)) 2*ones(1,length(learners))];
@@ -341,22 +391,18 @@ labels = [ones(1,length(nonLearners)) 2*ones(1,length(learners))];
 [RHO,PVAL] = corr(orderedPerformance(:,1),orderedScores(:,3)) % p80m perf, p80m fmt
 [RHO,PVAL] = corr(orderedPerformance(:,2),orderedScores(:,4)) % p80 perf, p80 fmt
 
-%% FMT plots
-
-close all;
+%% FMT Plots
+% 1. FMT for each condition
+% 2. Boxplots
+% 3. Correlations
 
 axs = {};
 labels = {};
-
 fontSize = 7;
 lineWidth = 1.25;
-
-
-% Subplot settings
 gap = [0.10,0.08];
 marg_h = [0.05,0.1];
 marg_w = [0.06,0.14];
-
 titleStrings = {{'Low Task','Low Cue'},{'Mid Task','Low Cue'},{'Mid Task','High Cue'},{'High Task','High Cue'}};
 titles = {};
 figA = makefigure(14,7);
@@ -420,7 +466,7 @@ for whichCond = 1:4
     caxis(tps{whichCond},topoLims);
 end
 
-% Box plots
+% Mean FMT Plots (Boxplots)
 figB = makefigure(7,6);
 plotColours = cbrewer('qual','Paired',8);
 nbpColours = plotColours([2 4 5 8],:);
@@ -429,11 +475,11 @@ ylabel('FMT Power (dB)');
 axs{end+1} = gca;
 axs{end}.XTickLabel = {'Low Task\newlineLow Cue','Mid Task\newlineLow Cue','Mid Task\newlineHigh Cue','High Task\newlineHigh Cue'};
 
-% Subplot settings
+% FMT Correlation Plots
 gap = [0.10,0.14];
 marg_h = [0.14,0.2];
 marg_w = [0.08,0.04];
-
+labels = {};
 figC = makefigure(19,6);
 axs{end+1} = subtightplot(1,3,1,gap,marg_h,marg_w);
 plot(orderedPerformance(:,1)*100,orderedScores(:,2),'LineStyle','none');
@@ -445,6 +491,9 @@ legend([p1,p2],'Learners','Non-Learners','Location','NorthWest','Box','off');
 xlabel('Performance (% correct)');
 ylabel('FMT (dB)');
 ylim([-1 3]);
+labels{1} = title('(a)');
+labels{1}.Units = 'normalized';
+labels{1}.Position = [-0.2,1.1,0];
 
 axs{end+1} = subtightplot(1,3,2,gap,marg_h,marg_w);
 plot(orderedPerformance(:,1)*100,orderedScores(:,3),'LineStyle','none');
@@ -456,6 +505,9 @@ legend([p1,p2],'Learners','Non-Learners','Location','NorthWest','Box','off');
 xlabel('Performance (% correct)');
 ylabel('FMT power (dB)');
 ylim([-1 3]);
+labels{2} = title('(b)');
+labels{2}.Units = 'normalized';
+labels{2}.Position = [-0.2,1.1,0];
 
 axs{end+1} = subtightplot(1,3,3,gap,marg_h,marg_w);
 plot(orderedPerformance(:,2)*100,orderedScores(:,4),'LineStyle','none');
@@ -467,6 +519,9 @@ legend([p1,p2],'Learners','Non-Learners','Location','NorthWest','Box','off');
 xlabel('Performance (% correct)');
 ylabel('FMT power (dB)');
 ylim([-1 3]);
+labels{3} = title('(c)');
+labels{3}.Units = 'normalized';
+labels{3}.Position = [-0.2,1.1,0];
 
 % Format all axes
 for a = 1:length(axs)
@@ -474,6 +529,12 @@ for a = 1:length(axs)
    axs{a}.Box = 'off';
 end
 
-print(figA,'fmt.tiff','-dtiff','-r300');
-print(figB,'fmtbar.tiff','-dtiff','-r300');
-print(figC,'fmtcorr.tiff','-dtiff','-r300');
+% Format all labels (a,b,c...)
+for l = 1:length(labels)
+   labels{l}.FontSize = 10;
+   labels{l}.FontWeight = 'Normal';
+end
+
+print(figA,fullfile(outputFolder,'fmt.tiff'),'-dtiff','-r300');
+print(figB,fullfile(outputFolder,'fmtbar.tiff'),'-dtiff','-r300');
+print(figC,fullfile(outputFolder,'fmtcorr.tiff'),'-dtiff','-r300');
