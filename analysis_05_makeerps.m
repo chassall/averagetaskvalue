@@ -196,16 +196,19 @@ imagesc(artifactPs(learners,:)); colorbar();
 disp('Cue-locked artifacts');
 meanArtifacts = mean(mean(artifactPs(learners,1:4),2),1);
 disp(meanArtifacts);
+stdArtifacts = std(mean(artifactPs(learners,1:4),2),[],1);
+disp(stdArtifacts);
 tval = abs(tinv(0.025,length(learners)-1));
-ci = tval*std(mean(artifactPs(learners,1:4),2),1)/sqrt(length(learners));
+ci = tval*stdArtifacts/sqrt(length(learners));
 disp(meanArtifacts-ci);
 disp(meanArtifacts+ci);
 
 disp('Feedback-locked artifacts');
 meanArtifacts = mean(mean(artifactPs(learners,5:12),2),1);
 disp(meanArtifacts);
+stdArtifacts = std(mean(artifactPs(learners,5:12),2),[],1);
 tval = abs(tinv(0.025,length(learners)-1));
-ci = tval*std(mean(artifactPs(learners,5:12),2),1)/sqrt(length(learners));
+ci = tval*stdArtifacts/sqrt(length(learners));
 disp(meanArtifacts-ci);
 disp(meanArtifacts+ci);
 
